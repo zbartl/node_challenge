@@ -1,0 +1,9 @@
+*.suo
+*.user
+*.swp
+*.*~
+/.vs
+/challenge/bin
+/challenge/obj
+/challenge/bower_components
+/challenge/wwwroot/lib

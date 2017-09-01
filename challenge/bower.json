@@ -1,0 +1,9 @@
+{
+  "name": "challenge",
+  "private": true,
+  "dependencies": {
+    "jquery": "3.2.1",
+    "d3": "3.5.17",
+    "rxjs": "4.1.0"
+  }
+}

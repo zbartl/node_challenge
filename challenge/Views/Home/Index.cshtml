@@ -1,0 +1,182 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+<style type="text/css">
+    body,
+    #graph {
+        height: 100vh;
+    }
+
+    .node {
+        stroke: #222;
+        stroke-width: 1.5px;
+    }
+
+    .node.ip {
+        fill: #888;
+    }
+
+    .node.domain {
+        fill: #BBB;
+    }
+
+    .link {
+        stroke: #999;
+        stroke-opacity: .6;
+        stroke-width: 1px;
+    }
+</style>
+
+<p>
+    hello world
+</p>
+
+<div id="graph"></div>
+
+@section Scripts {
+    <script src="~/lib/d3/d3.js"></script>
+    <script src="~/lib/rxjs/modules/rx-lite/rx.lite.js"></script>
+    <script>
+        $(function () {
+            nodes.init();
+            nodes.startRefreshNodesJob();
+            nodes.startDataManipulationJob();
+        });
+
+        var nodes = {
+            width: 800,
+            height: 800,
+            svg: '',
+            force: '',
+
+            init: function () {
+                this.force = d3.layout.force()
+                    .friction(.2)
+                    .charge(-200)
+                    .linkDistance(50)
+                    .size([nodes.width, nodes.height]),
+
+                this.svg = d3.select("#graph").append("svg")
+                    .attr("width", "100%").attr("height", "100%")
+                    .attr("pointer-events", "all");
+
+                this.updateData();
+            },
+
+            loadData: function() {
+                // load graph (nodes,links) json from /graph endpoint
+                d3.json("/api/nodes", function (error, graph) {
+                    if (error) return;
+
+                    // render relationships as lines
+                    var link = nodes.svg.selectAll(".link")
+                        .data(graph.links).enter()
+                        .append("line").attr("class", "link");
+
+                    // render nodes as circles, css-class from label
+                    var node = nodes.svg.selectAll(".node")
+                        .data(graph.nodes).enter()
+                        .append("circle")
+                        .attr("class", function (d) { return "node " + d.label })
+                        .attr("r", 10);
+
+                    // html title attribute for title node-attribute
+                    node.append("title")
+                        .text(function (d) { return d.title; })
+
+                    // force feed algo ticks for coordinate computation
+                    nodes.force.on("tick", function () {
+                        link.attr("x1", function (d) { return d.source.x; })
+                            .attr("y1", function (d) { return d.source.y; })
+                            .attr("x2", function (d) { return d.target.x; })
+                            .attr("y2", function (d) { return d.target.y; });
+
+                        node.attr("cx", function (d) { return d.x; })
+                            .attr("cy", function (d) { return d.y; });
+                    });
+
+                    nodes.force.nodes(graph.nodes).links(graph.links).start();
+                });
+            },
+
+            updateData: function (graph) {
+                d3.json("/api/nodes", function (error, graph) {
+                    var link = nodes.svg.selectAll(".link")
+                        .data(graph.links);
+
+                    link.exit().remove();
+
+                    link.enter().append("line")
+                        .attr("class", "link");
+                       
+                    var node = nodes.svg.selectAll(".node")
+                        .data(graph.nodes);
+
+                    node.exit().remove();
+
+                    node.enter().append("circle")
+                        .attr("class", function (d) { return "node " + d.label })
+                        .attr("r", 10);
+
+                    node
+                        .enter()
+                        .append("title")
+                        .text(function (d) { return d.title; })
+
+                    nodes.force.on("tick", function () {
+                        link.attr("x1", function (d) { return d.source.x; })
+                            .attr("y1", function (d) { return d.source.y; })
+                            .attr("x2", function (d) { return d.target.x; })
+                            .attr("y2", function (d) { return d.target.y; });
+
+                        node.attr("cx", function (d) { return d.x; })
+                            .attr("cy", function (d) { return d.y; });
+                    });
+
+                    nodes.force.nodes(graph.nodes).links(graph.links).start();
+                });
+            },
+
+            startDataManipulationJob: function () {
+                var timer = Rx.Observable.interval(5050);
+
+                var subscription = timer.subscribe(
+                    nodes.manipulateData,
+                    function (err) {
+                        console.log('Error: ' + err);
+                    },
+                    function () {
+                    }
+                )
+            },
+
+            manipulateData: function () {
+                if (Math.random() > .5) {
+                    $.post("/api/add");
+                    console.log("added node");
+                }
+                else {
+                    $.post("/api/remove");
+                    console.log("removed node");
+                }
+            },
+
+            startRefreshNodesJob: function () {
+                var timer = Rx.Observable.interval(5000);
+
+                var subscription = timer.subscribe(
+                    function () {
+                        //d3.select("svg").selectAll("*").remove();
+                        nodes.updateData();
+                        console.log("updated");
+                    },
+                    function (err) {
+                        console.log('Error: ' + err);
+                    },
+                    function () {
+                    }
+                )
+            },
+        };
+    </script>
+}
