@@ -7,16 +7,16 @@
         height: 100vh;
     }
 
-    .node {
+    .node .circle {
         stroke: #222;
         stroke-width: 1.5px;
     }
 
-    .node.ip {
+    .node .circle.ip {
         fill: #888;
     }
 
-    .node.domain {
+    .node .circle.domain {
         fill: #BBB;
     }
 
@@ -38,110 +38,107 @@
     <script src="~/lib/rxjs/modules/rx-lite/rx.lite.js"></script>
     <script>
         $(function () {
-            nodes.init();
-            nodes.startRefreshNodesJob();
-            nodes.startDataManipulationJob();
+            visualization.init();
+            visualization.startRefreshNodesJob();
+            visualization.startDataManipulationJob();
         });
 
-        var nodes = {
-            width: 800,
-            height: 800,
+        var visualization = {
+            width: 1000,
+            height: 500,
             svg: '',
             force: '',
+            nodes: '',
+            links: '',
 
             init: function () {
-                this.force = d3.layout.force()
-                    .friction(.2)
-                    .charge(-200)
-                    .linkDistance(50)
-                    .size([nodes.width, nodes.height]),
+                this.force = d3.layout.force();
+                this.nodes = this.force.nodes();
+                this.links = this.force.links();
 
                 this.svg = d3.select("#graph").append("svg")
-                    .attr("width", "100%").attr("height", "100%")
-                    .attr("pointer-events", "all");
+                    .attr("width", "100%").attr("height", this.height)
+                    .attr("pointer-events", "all")
+                    .attr("viewBox", "0 0 " + this.width + " " + this.height)
+                    .attr("perserveAspectRatio", "xMinYMid")
+                    .append("svg:g");
 
-                this.updateData();
+                this.initializeData();
             },
 
-            loadData: function() {
-                // load graph (nodes,links) json from /graph endpoint
+            initializeData: function () {
                 d3.json("/api/nodes", function (error, graph) {
-                    if (error) return;
+                    visualization.drawData(graph);
 
-                    // render relationships as lines
-                    var link = nodes.svg.selectAll(".link")
-                        .data(graph.links).enter()
-                        .append("line").attr("class", "link");
+                    visualization.force
+                        .distance(100)
+                        .linkDistance(250)
+                        .size([visualization.width, visualization.height])
+                        .nodes(graph.nodes)
+                        .links(graph.links)
+                        .start();
+                });
 
-                    // render nodes as circles, css-class from label
-                    var node = nodes.svg.selectAll(".node")
-                        .data(graph.nodes).enter()
-                        .append("circle")
-                        .attr("class", function (d) { return "node " + d.label })
-                        .attr("r", 10);
+            },
+            updateData: function () {
+                d3.json("/api/nodes", function (error, graph) {
+                    visualization.drawData(graph);
 
-                    // html title attribute for title node-attribute
-                    node.append("title")
-                        .text(function (d) { return d.title; })
-
-                    // force feed algo ticks for coordinate computation
-                    nodes.force.on("tick", function () {
-                        link.attr("x1", function (d) { return d.source.x; })
-                            .attr("y1", function (d) { return d.source.y; })
-                            .attr("x2", function (d) { return d.target.x; })
-                            .attr("y2", function (d) { return d.target.y; });
-
-                        node.attr("cx", function (d) { return d.x; })
-                            .attr("cy", function (d) { return d.y; });
-                    });
-
-                    nodes.force.nodes(graph.nodes).links(graph.links).start();
+                    visualization.force
+                        .distance(100)
+                        .linkDistance(250)
+                        .size([visualization.width, visualization.height])
+                        .start();
                 });
             },
 
-            updateData: function (graph) {
-                d3.json("/api/nodes", function (error, graph) {
-                    var link = nodes.svg.selectAll(".link")
+            drawData: function (graph) {
+                    var link = visualization.svg.selectAll(".link")
                         .data(graph.links);
 
                     link.exit().remove();
 
                     link.enter().append("line")
                         .attr("class", "link");
-                       
-                    var node = nodes.svg.selectAll(".node")
-                        .data(graph.nodes);
+
+                    var node = visualization.svg.selectAll("g.node")
+                        .data(graph.nodes);//, function (d) {
+                            //return d.id;
+                        //});
 
                     node.exit().remove();
 
-                    node.enter().append("circle")
+                    var nodeEnter = node.enter().append("g")
                         .attr("class", function (d) { return "node " + d.label })
-                        .attr("r", 10);
+                        .call(visualization.force.drag);
 
-                    node
-                        .enter()
-                        .append("title")
-                        .text(function (d) { return d.title; })
+                    nodeEnter.append("svg:circle")
+                        .attr("r", 12)
+                        .attr("id", function (d) { return "Node;" + d.id; })
+                        .attr("class", function (d) { return "circle " + d.label });
 
-                    nodes.force.on("tick", function () {
+                    nodeEnter.append("svg:title")
+                        //.attr("class", "textClass")
+                        .text(function (d) { return d.title; });
+
+
+                    visualization.force.on("tick", function () {
+                        node.attr("transform", function (d) {
+                            return "translate(" + d.x + "," + d.y + ")";
+                        });
+
                         link.attr("x1", function (d) { return d.source.x; })
                             .attr("y1", function (d) { return d.source.y; })
                             .attr("x2", function (d) { return d.target.x; })
                             .attr("y2", function (d) { return d.target.y; });
-
-                        node.attr("cx", function (d) { return d.x; })
-                            .attr("cy", function (d) { return d.y; });
                     });
-
-                    nodes.force.nodes(graph.nodes).links(graph.links).start();
-                });
             },
 
             startDataManipulationJob: function () {
                 var timer = Rx.Observable.interval(5050);
 
                 var subscription = timer.subscribe(
-                    nodes.manipulateData,
+                    visualization.manipulateData,
                     function (err) {
                         console.log('Error: ' + err);
                     },
@@ -167,7 +164,7 @@
                 var subscription = timer.subscribe(
                     function () {
                         //d3.select("svg").selectAll("*").remove();
-                        nodes.updateData();
+                        visualization.updateData();
                         console.log("updated");
                     },
                     function (err) {

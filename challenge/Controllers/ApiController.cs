@@ -12,6 +12,7 @@ namespace challenge.Controllers
     public class ApiController : Controller
     {
         [Route("seed")]
+        [HttpPost]
         public string Seed()
         {
             for(int i = 0; i < 10; i++)
@@ -23,6 +24,7 @@ namespace challenge.Controllers
         }
 
         [Route("nodes")]
+        [HttpGet]
         public IActionResult Nodes()
         {
             using (var driver = GraphDatabase.Driver("bolt://hobby-ilkndjgcjildgbkeejcngapl.dbs.graphenedb.com:24786", AuthTokens.Basic("neo4j", "b.jSzmmKQQak2w.adk8es1bWYoBSXUt")))
