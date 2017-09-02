@@ -63,6 +63,45 @@ namespace challenge.Controllers
             }
         }
 
+        [HttpGet("nodes/{depth:int}")]
+        public IActionResult Nodes(int depth)
+        {
+            using (var driver = GraphDatabase.Driver("bolt://hobby-ilkndjgcjildgbkeejcngapl.dbs.graphenedb.com:24786", AuthTokens.Basic("neo4j", "b.jSzmmKQQak2w.adk8es1bWYoBSXUt")))
+            using (var session = driver.Session())
+            {
+                var result =
+                    session.Run(
+                        @"
+                            MATCH (i:IP)-[:ASSIGNED*" + depth + @"]->(d:Domain)
+                            RETURN d.domain as d, collect(i.ip) as ips
+                        ");
+
+                var nodes = new List<NodeResult>();
+                var relationships = new List<object>();
+                int i = 0;
+                foreach (var record in result)
+                {
+                    var target = i;
+                    nodes.Add(new NodeResult { title = record["d"].As<string>(), label = "domain" });
+                    i += 1;
+
+                    var ips = record["ips"].As<List<string>>();
+                    foreach (var ip in ips)
+                    {
+                        var source = nodes.FindIndex(c => c.title == ip);
+                        if (source == -1)
+                        {
+                            nodes.Add(new NodeResult { title = ip, label = "ip" });
+                            source = i;
+                            i += 1;
+                        }
+                        relationships.Add(new { source, target });
+                    }
+                }
+                return Ok(new { nodes, links = relationships });
+            }
+        }
+
         [Route("add")]
         [HttpPost]
         public string Add()
