@@ -37,29 +37,9 @@ namespace challenge.Controllers
                             RETURN d.domain as d, collect(i.ip) as ips
                         ");
 
-                var nodes = new List<NodeResult>();
-                var relationships = new List<object>();
-                int i = 0;
-                foreach (var record in result)
-                {
-                    var target = i;
-                    nodes.Add(new NodeResult { title = record["d"].As<string>(), label = "domain" });
-                    i += 1;
+                var data = ParseDomainRelationships(result);
 
-                    var ips = record["ips"].As<List<string>>();
-                    foreach (var ip in ips)
-                    {
-                        var source = nodes.FindIndex(c => c.title == ip);
-                        if (source == -1)
-                        {
-                            nodes.Add(new NodeResult { title = ip, label = "ip" });
-                            source = i;
-                            i += 1;
-                        }
-                        relationships.Add(new { source, target });
-                    }
-                }
-                return Ok(new { nodes, links = relationships });
+                return Ok(data);
             }
         }
 
@@ -76,49 +56,157 @@ namespace challenge.Controllers
                             RETURN d.domain as d, collect(i.ip) as ips
                         ");
 
-                var nodes = new List<NodeResult>();
-                var relationships = new List<object>();
-                int i = 0;
-                foreach (var record in result)
-                {
-                    var target = i;
-                    nodes.Add(new NodeResult { title = record["d"].As<string>(), label = "domain" });
-                    i += 1;
+                var data = ParseDomainRelationships(result);
 
-                    var ips = record["ips"].As<List<string>>();
-                    foreach (var ip in ips)
-                    {
-                        var source = nodes.FindIndex(c => c.title == ip);
-                        if (source == -1)
-                        {
-                            nodes.Add(new NodeResult { title = ip, label = "ip" });
-                            source = i;
-                            i += 1;
-                        }
-                        relationships.Add(new { source, target });
-                    }
-                }
-                return Ok(new { nodes, links = relationships });
+                return Ok(data);
             }
+        }
+
+        private object SingleDomain(int id)
+        {
+            using (var driver = GraphDatabase.Driver("bolt://hobby-ilkndjgcjildgbkeejcngapl.dbs.graphenedb.com:24786", AuthTokens.Basic("neo4j", "b.jSzmmKQQak2w.adk8es1bWYoBSXUt")))
+            using (var session = driver.Session())
+            {
+                var result =
+                    session.Run(
+                        @"
+                        MATCH (i:IP)-[:ASSIGNED*]->(d:Domain)
+                        WHERE ID(d) = {id}
+                        RETURN d.domain as d, collect(i.ip) as ips
+                        ", 
+                        new Dictionary<string, object> { { "id", id } });
+
+                var data = ParseSingleDomainRelationships(result);
+
+                return data;
+            }
+        }
+
+        private object SingleIP(int id)
+        {
+            using (var driver = GraphDatabase.Driver("bolt://hobby-ilkndjgcjildgbkeejcngapl.dbs.graphenedb.com:24786", AuthTokens.Basic("neo4j", "b.jSzmmKQQak2w.adk8es1bWYoBSXUt")))
+            using (var session = driver.Session())
+            {
+                var result =
+                    session.Run(
+                        @"
+                        MATCH (i:IP)-[:ASSIGNED*]->(d:Domain)
+                        WHERE ID(i) = {id}
+                        RETURN i.ip as i, collect(d.domain) as domains
+                        ", 
+                        new Dictionary<string, object> { { "id", id } });
+
+                var data = ParseSingleIPRelationships(result);
+
+                return data;
+            }
+        }
+
+        private object ParseDomainRelationships(IStatementResult result)
+        {
+            var nodes = new List<NodeResult>();
+            var relationships = new List<object>();
+            int i = 0;
+            foreach (var record in result)
+            {
+                var target = i;
+                nodes.Add(new NodeResult { title = record["d"].As<string>(), label = "domain" });
+                i += 1;
+
+                var ips = record["ips"].As<List<string>>();
+                foreach (var ip in ips)
+                {
+                    var source = nodes.FindIndex(c => c.title == ip);
+                    if (source == -1)
+                    {
+                        nodes.Add(new NodeResult { title = ip, label = "ip" });
+                        source = i;
+                        i += 1;
+                    }
+                    relationships.Add(new { source, target });
+                }
+            }
+
+            return new { nodes, links = relationships };
+        }
+
+        private object ParseSingleDomainRelationships(IStatementResult result)
+        {
+            var node = new NodeResult();
+            var tempIPNodes = new List<NodeResult>();
+            var relationships = new List<object>();
+            int i = 0;
+            foreach (var record in result)
+            {
+                var target = i;
+                node = new NodeResult { title = record["d"].As<string>(), label = "domain" };
+                i += 1;
+
+                var ips = record["ips"].As<List<string>>();
+                foreach (var ip in ips)
+                {
+                    var source = tempIPNodes.FindIndex(c => c.title == ip);
+                    if (source == -1)
+                    {
+                        tempIPNodes.Add(new NodeResult { title = ip, label = "ip" });
+                        source = i;
+                        i += 1;
+                    }
+                    relationships.Add(new { source, target });
+                }
+            }
+
+            return new { node, links = tempIPNodes };
+        }
+
+        private object ParseSingleIPRelationships(IStatementResult result)
+        {
+            var node = new NodeResult();
+            var tempDomainNodes = new List<NodeResult>();
+            var relationships = new List<object>();
+            int i = 0;
+            foreach (var record in result)
+            {
+                var target = i;
+                node = new NodeResult { title = record["i"].As<string>(), label = "ip" };
+                i += 1;
+
+                var domains = record["domains"].As<List<string>>();
+                foreach (var domain in domains)
+                {
+                    var source = tempDomainNodes.FindIndex(c => c.title == domain);
+                    if (source == -1)
+                    {
+                        tempDomainNodes.Add(new NodeResult { title = domain, label = "domain" });
+                        source = i;
+                        i += 1;
+                    }
+                    relationships.Add(new { target, source });
+                }
+            }
+
+            return new { node, links = tempDomainNodes };
         }
 
         [Route("add")]
         [HttpPost]
-        public string Add()
+        public IActionResult Add()
         {
-            AddRandomNode();
-            return "added";
+            var data = AddRandomNode();
+
+            return Ok(data);
         }
 
         [Route("remove")]
         [HttpPost]
-        public string Remove()
+        public IActionResult Remove()
         {
-            RemoveRandomNode();
-            return "removed";
+            var data = RemoveRandomNode();
+
+            return Ok(data);
         }
 
-        private void AddRandomNode()
+        private object AddRandomNode()
         {
             using (var driver = GraphDatabase.Driver("bolt://hobby-ilkndjgcjildgbkeejcngapl.dbs.graphenedb.com:24786", AuthTokens.Basic("neo4j", "b.jSzmmKQQak2w.adk8es1bWYoBSXUt")))
             using (var session = driver.Session())
@@ -156,6 +244,18 @@ namespace challenge.Controllers
                                 new Dictionary<string, object> { { "ip", ip }, { "domain", existingDomain } });
                         }
                     }
+
+                    var ipNode = session.Run(
+                        @"
+                            MATCH (i:IP { ip : {ip} })
+                            RETURN ID(i) as id
+                        ",
+                        new Dictionary<string, object> { { "ip", ip } }
+                    );
+
+                    var id = ipNode.FirstOrDefault()["id"].As<int>();
+
+                    return SingleIP(id);
                 }
                 //domain
                 else
@@ -188,11 +288,23 @@ namespace challenge.Controllers
                                 new Dictionary<string, object> { { "ip", existingIp }, { "domain", domain } });
                         }
                     }
+
+                    var domainNode = session.Run(
+                        @"
+                            MATCH (d:Domain { domain : {domain} })
+                            RETURN ID(d) as id
+                        ",
+                        new Dictionary<string, object> { { "domain", domain } }
+                    );
+
+                    var id = domainNode.FirstOrDefault()["id"].As<int>();
+
+                    return SingleDomain(id);
                 }
             }
         }
 
-        private void RemoveRandomNode()
+        private object RemoveRandomNode()
         {
             using (var driver = GraphDatabase.Driver("bolt://hobby-ilkndjgcjildgbkeejcngapl.dbs.graphenedb.com:24786", AuthTokens.Basic("neo4j", "b.jSzmmKQQak2w.adk8es1bWYoBSXUt")))
             using (var session = driver.Session())
@@ -263,6 +375,8 @@ namespace challenge.Controllers
                     }
                 }
             }
+
+            return new { nodes = new List<NodeResult>(), links = new List<object>() };
         }
     }
 }

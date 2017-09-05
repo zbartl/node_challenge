@@ -39,7 +39,7 @@
     <script>
         $(function () {
             visualization.init();
-            visualization.startRefreshNodesJob();
+            //visualization.startRefreshNodesJob();
             visualization.startDataManipulationJob();
         });
 
@@ -68,7 +68,7 @@
 
             initializeData: function () {
                 d3.json("/api/nodes", function (error, graph) {
-                    visualization.drawData(graph);
+                    visualization.drawData(graph.links, graph.nodes);
 
                     visualization.force
                         .distance(100)
@@ -80,9 +80,10 @@
                 });
 
             },
+
             updateData: function () {
                 d3.json("/api/nodes", function (error, graph) {
-                    visualization.drawData(graph);
+                    visualization.drawData(graph.links, graph.nodes);
 
                     visualization.force
                         .distance(100)
@@ -92,9 +93,9 @@
                 });
             },
 
-            drawData: function (graph) {
+            drawData: function (links, nodes) {
                     var link = visualization.svg.selectAll(".link")
-                        .data(graph.links);
+                        .data(links);
 
                     link.exit().remove();
 
@@ -102,7 +103,7 @@
                         .attr("class", "link");
 
                     var node = visualization.svg.selectAll("g.node")
-                        .data(graph.nodes);//, function (d) {
+                        .data(nodes);//, function (d) {
                             //return d.id;
                         //});
 
@@ -149,13 +150,46 @@
 
             manipulateData: function () {
                 if (Math.random() > .5) {
-                    $.post("/api/add");
+                    //$.post("/api/add");
+
+                    d3.json("/api/add").post({}, function (error, graph) {
+                        visualization.force.nodes().push(graph.node);
+
+                        var nodePosition = visualization.force.nodes().length - 1;
+
+                        $.each(graph.links, function (i, l) {
+                            var linkPosition = visualization.findNodeIndex(l.title);
+                            if (l.label = "domain") {
+                                visualization.force.links().push({ "source": nodePosition, "target": linkPosition });
+                            }
+                            else {
+                                visualization.force.links().push({ "source": linkPosition, "target": nodePosition });
+                            }
+                        });
+
+                        visualization.drawData(visualization.force.links(), visualization.force.nodes());
+                        
+                        visualization.force
+                            .distance(100)
+                            .linkDistance(250)
+                            .size([visualization.width, visualization.height])
+                            .start();
+                    });
                     console.log("added node");
                 }
                 else {
                     $.post("/api/remove");
                     console.log("removed node");
                 }
+            },
+
+            findNodeIndex: function (title) {
+                for (var i = 0; i < visualization.force.nodes().length; i++) {
+                    if (visualization.force.nodes()[i].title == title) {
+                        return i;
+                    }
+                }
+                return 0;
             },
 
             startRefreshNodesJob: function () {
