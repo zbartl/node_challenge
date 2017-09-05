@@ -10,3 +10,5 @@ dotnet run
 ```
 
 Access localhost address bound above.
+
+Swagger UI Endpoint: /swagger
