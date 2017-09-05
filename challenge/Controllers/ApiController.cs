@@ -326,11 +326,13 @@ namespace challenge.Controllers
                         var removed = session.Run(
                             @"
                                 MATCH (i:IP)
-                                RETURN ID(i) as id
+                                RETURN ID(i) as id, i.ip as title
                                 SKIP {offset} LIMIT 1
                             ", 
                             new Dictionary<string, object> { { "offset", new Random().Next(0, count - 1) } }
                             );
+
+                        var removedNode = removed.FirstOrDefault();
 
                         session.Run(
                             @"
@@ -338,8 +340,10 @@ namespace challenge.Controllers
                                 WHERE ID(i) = {id}
                                 DETACH DELETE i
                             ", 
-                            new Dictionary<string, object> { { "id", removed.FirstOrDefault()["id"] } }
+                            new Dictionary<string, object> { { "id", removedNode["id"] } }
                             );
+
+                        return new { removed = removedNode["title"] };
                     }
                 }
                 //domain
@@ -358,11 +362,13 @@ namespace challenge.Controllers
                         var removed = session.Run(
                             @"
                                 MATCH (d:Domain)
-                                RETURN ID(d) as id
+                                RETURN ID(d) as id, d.domain as title
                                 SKIP {offset} LIMIT 1
                             ",
                             new Dictionary<string, object> { { "offset", new Random().Next(1, count) } }
                             );
+
+                        var removedNode = removed.FirstOrDefault();
 
                         session.Run(
                             @"
@@ -370,13 +376,16 @@ namespace challenge.Controllers
                                 WHERE ID(d) = {id}
                                 DETACH DELETE d
                             ",
-                            new Dictionary<string, object> { { "id", removed.FirstOrDefault()["id"] } }
+                            new Dictionary<string, object> { { "id", removedNode["id"] } }
                             );
+
+                        return new { removed = removedNode["title"] };
                     }
+
                 }
             }
 
-            return new { nodes = new List<NodeResult>(), links = new List<object>() };
+            return new { memoved = "" };
         }
     }
 }

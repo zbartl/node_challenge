@@ -7,3 +7,6 @@
 /challenge/obj
 /challenge/bower_components
 /challenge/wwwroot/lib
+/challenge.tests/bin
+/challenge.tests/obj
+/packages

@@ -166,21 +166,38 @@
                                 visualization.force.links().push({ "source": linkPosition, "target": nodePosition });
                             }
                         });
-
-                        visualization.drawData(visualization.force.links(), visualization.force.nodes());
-                        
-                        visualization.force
-                            .distance(100)
-                            .linkDistance(250)
-                            .size([visualization.width, visualization.height])
-                            .start();
                     });
                     console.log("added node");
                 }
                 else {
-                    $.post("/api/remove");
+                    //$.post("/api/remove");
+
+                    d3.json("/api/remove").post({}, function (error, graph) {
+                        var nodePosition = visualization.findNodeIndex(graph.removed);
+
+                        var i = 0;
+                        while (i < visualization.force.links().length) {
+                            if (visualization.force.links()[i]['source'].index == nodePosition ||
+                                visualization.force.links()[i]['target'].index == nodePosition) {
+                                visualization.force.links().splice(i, 1);
+                            }
+                            else {
+                                i++;
+                            }
+                        }
+
+                        visualization.force.nodes().splice(nodePosition, 1);
+                    });
                     console.log("removed node");
                 }
+
+                visualization.drawData(visualization.force.links(), visualization.force.nodes());
+                
+                visualization.force
+                    .distance(100)
+                    .linkDistance(250)
+                    .size([visualization.width, visualization.height])
+                    .start();
             },
 
             findNodeIndex: function (title) {
